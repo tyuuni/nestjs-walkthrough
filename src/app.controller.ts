@@ -1,12 +1,43 @@
-import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import {
+    Controller,
+    Get,
+    Put,
+    HttpStatus,
+    HttpCode,
+    Ip,
+    Headers,
+    Res,
+    Req,
+    Body,
+    PipeTransform,
+    ArgumentMetadata,
+    Post,
+    Patch,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { TemporaryMonolithicService } from './service/TemporaryMonolithicService';
 
-@Controller()
+const tb: PipeTransform<any, any> = {
+    transform(value: any, metadata: ArgumentMetadata) {
+        console.log(value, metadata);
+        return value;
+    },
+};
+
+@Controller('/')
 export class AppController {
-    constructor(private readonly appService: AppService) {}
+    constructor(
+        private readonly monolithicService: TemporaryMonolithicService,
+    ) {}
 
-    @Get()
-    getHello(): string {
-        return this.appService.getHello();
+    @HttpCode(HttpStatus.CREATED)
+    @Put('/students')
+    createStudent(@Ip() ip: string, @Res() res: Response) {
+        console.log(ip);
+        res.status(HttpStatus.CREATED).json({ id: 'abcde' });
     }
+
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @Patch('/student/:id')
+    updateStudent(@Body(tb) body: any) {}
 }

@@ -1,0 +1,9 @@
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=test
+export DB_PASSWORD=test
+export DB_DATABASE=test
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+export REDIS_PASSWORD=
+export REDIS_DB=0
