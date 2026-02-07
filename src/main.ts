@@ -1,14 +1,14 @@
 import { Redis } from 'ioredis';
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import pino from 'pino';
-import { TypeOrmPinoLogger } from 'typeorm-pino-logger';
-import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { QueryRunner, DataSource } from 'typeorm';
 import { User, Course, CourseStudentRef } from './service/models';
 import { TemporaryMonolithicService } from './service/TemporaryMonolithicService';
 import { Module, MiddlewareConsumer, Injectable } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { Tracer } from './middleware/tracer';
+import { RequestFormatValidationPipe } from './pipes';
+import { Tracer, TracingLogger, TracingTypeormLogger } from './tracing';
 
 type Class<T = any> = new (...args: any[]) => T;
 
@@ -20,57 +20,12 @@ const anonymizeClass = <Clazz extends Class>(clazz: Clazz): Clazz => {
     };
 };
 
-const logger = pino();
-
-class TracingTypeOrmPinoLogger extends TypeOrmPinoLogger {
-    logQuery(query: string, parameters?: unknown[], queryRunner?: QueryRunner) {
-        const tracer = trace.getTracer('typeorm-pino-logger');
-        const span = tracer.startSpan('db.query', {
-            attributes: {
-                'db.statement': query,
-                'db.system': 'postgresql',
-                // @ts-ignore
-                'db.name': queryRunner?.connection?.options?.database,
-            },
-        });
-
-        context.with(trace.setSpan(context.active(), span), () => {
-            super.logQuery(query, parameters, queryRunner);
-            span.setStatus({ code: SpanStatusCode.OK });
-            span.end();
-        });
-    }
-
-    logQueryError(
-        error: string | Error,
-        query: string,
-        parameters?: unknown[],
-        queryRunner?: QueryRunner,
-    ) {
-        const tracer = trace.getTracer('typeorm-pino-logger');
-        const span = tracer.startSpan('db.query.error', {
-            attributes: {
-                'db.statement': query,
-                'db.system': 'postgresql',
-                // @ts-ignore
-                'db.name': queryRunner?.connection?.options?.database,
-            },
-        });
-
-        context.with(trace.setSpan(context.active(), span), () => {
-            super.logQueryError(error, query, parameters, queryRunner);
-            span.setStatus({
-                code: SpanStatusCode.ERROR,
-                message: typeof error === 'string' ? error : error.message,
-            });
-            span.end();
-        });
-    }
-}
+const logger = new TracingLogger('main');
 
 const bootstrap = async () => {
-    logger.info('Bootstraping...');
-    logger.info('connecting to database...');
+    logger.log('Bootstraping...');
+
+    logger.log('connecting to database...');
     const dataSource = new DataSource({
         type: 'postgres',
         host: process.env.DB_HOST,
@@ -78,7 +33,7 @@ const bootstrap = async () => {
         username: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_DATABASE,
-        logger: new TracingTypeOrmPinoLogger(logger),
+        logger: new TracingTypeormLogger(),
         entities: [User, Course, CourseStudentRef],
     });
     try {
@@ -87,9 +42,9 @@ const bootstrap = async () => {
         logger.error(error, 'failed to connect to database.');
         process.exit(1);
     }
-    logger.info('connected to database.');
+    logger.log('connected to database.');
 
-    logger.info('connecting to redis...');
+    logger.log('connecting to redis...');
     const redis = new Redis({
         host: process.env.REDIS_HOST,
         port: Number(process.env.REDIS_PORT),
@@ -103,7 +58,7 @@ const bootstrap = async () => {
         logger.error(error, 'failed to connect to redis.');
         process.exit(1);
     }
-    logger.info('connected to redis.');
+    logger.log('connected to redis.');
 
     Injectable()(TemporaryMonolithicService);
 
@@ -121,6 +76,10 @@ const bootstrap = async () => {
                 provide: TemporaryMonolithicService,
                 useValue: monolithicService,
             },
+            {
+                provide: Redis,
+                useValue: redis,
+            },
         ],
     })
     class AppModule {
@@ -131,15 +90,23 @@ const bootstrap = async () => {
 
     const app = await NestFactory.create(AppModule);
 
-    await app.listen(process.env.PORT ?? 3000);
+    app.useGlobalPipes(new RequestFormatValidationPipe());
+
+    const serverPort = process.env.PORT ?? 3000;
+
+    await app.listen(serverPort);
+    logger.log(`application is running on port ${serverPort}`);
 
     const gracefulshutdown = async () => {
         try {
-            logger.info('closing database connection...');
+            logger.log('closing database connection...');
             await dataSource.destroy();
-            logger.info('database connection closed.');
+            logger.log('database connection closed.');
+            logger.log('closing redis connection...');
+            await redis.quit();
+            logger.log('redis connection closed.');
             await app.close();
-            logger.info('application gracefully shutdown.');
+            logger.log('application gracefully shutdown.');
             process.exit(0);
         } catch (error) {
             console.log(error);
@@ -150,7 +117,7 @@ const bootstrap = async () => {
 
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
         process.on(signal, async () => {
-            logger.info(`process received signal ${signal}, shutting down...`);
+            logger.log(`process received signal ${signal}, shutting down...`);
             await gracefulshutdown();
         });
     }
