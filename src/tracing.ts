@@ -39,10 +39,16 @@ const tracerProvider = new NodeTracerProvider({
 tracerProvider.register();
 
 registerInstrumentations({
-    instrumentations: [new TypeormInstrumentation()],
+    tracerProvider,
+    instrumentations: [
+        new TypeormInstrumentation({
+            enabled: true,
+            enableInternalInstrumentation: true,
+        }),
+    ],
 });
 
-const tracer = trace.getTracer('default');
+const tracer = tracerProvider.getTracer('default');
 
 export class TracingLogger implements LoggerService {
     private readonly delegate: Logger;
@@ -60,7 +66,7 @@ export class TracingLogger implements LoggerService {
         if (span) {
             const spanContext = span.spanContext();
             this.delegate[method](
-                `${spanContext.traceId} ${message}`,
+                `${spanContext.traceId} ${spanContext.spanId} ${message}`,
                 ...optionalParams,
             );
         } else {
@@ -117,6 +123,7 @@ export class Tracer implements NestMiddleware {
             this.logger.log(
                 `finished processing ${req.method}:${req.originalUrl} ${Date.now() - startTime}ms`,
             );
+            span.end();
         });
 
         context.with(ctx, () => {

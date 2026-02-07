@@ -1,14 +1,13 @@
 import { Redis } from 'ioredis';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
-import pino from 'pino';
-import { QueryRunner, DataSource } from 'typeorm';
+// opentelemetry should be initialized before tools: typeorm
+import { Tracer, TracingLogger, TracingTypeormLogger } from './tracing';
+import { DataSource } from 'typeorm';
 import { User, Course, CourseStudentRef } from './service/models';
 import { TemporaryMonolithicService } from './service/TemporaryMonolithicService';
 import { Module, MiddlewareConsumer, Injectable } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { RequestFormatValidationPipe } from './pipes';
-import { Tracer, TracingLogger, TracingTypeormLogger } from './tracing';
 
 type Class<T = any> = new (...args: any[]) => T;
 

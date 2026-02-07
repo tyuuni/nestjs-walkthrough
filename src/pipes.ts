@@ -10,9 +10,6 @@ import { validate, ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { ErrorCode } from './config';
 
-/**
- * TODO: this pipe currently goes before Tracer middleware.
- */
 export class RequestFormatValidationPipe implements PipeTransform<any> {
     async transform(value: any, metadata: ArgumentMetadata) {
         if (metadata.metatype && value === undefined) {
