@@ -114,21 +114,39 @@ export class Tracer implements NestMiddleware {
                 'http.url': req.originalUrl,
             },
         });
+
         const ctx = trace.setSpan(context.active(), span);
 
-        res.on('close', () => {
+        res.on('error', (err) => {
             span.setStatus({
                 code: SpanStatusCode.ERROR,
             });
-            this.logger.log(
-                `finished processing ${req.method}:${req.originalUrl} ${Date.now() - startTime}ms`,
+            this.logger.error(
+                `${span.spanContext().traceId} ${span.spanContext().spanId} an error occurred. `,
+                err,
             );
+        });
+
+        res.on('close', () => {
+            span.setStatus({
+                code: SpanStatusCode.OK,
+            });
+            if (!res.writableEnded) {
+                // TODO: look into why context is lost when user aborts request
+                this.logger.log(
+                    `${span.spanContext().traceId} ${span.spanContext().spanId} user aborted ${req.method}:${req.originalUrl} ${Date.now() - startTime}ms`,
+                );
+            } else {
+                this.logger.log(
+                    `finished processing ${req.method}:${req.originalUrl} ${Date.now() - startTime}ms`,
+                );
+            }
             span.end();
         });
 
         context.with(ctx, () => {
             this.logger.log(
-                `start processing ${req.method}:${req.originalUrl}`,
+                `start processing ${req.method}:${req.originalUrl}}`,
             );
             next();
         });

@@ -382,7 +382,7 @@ export function formatWithArray(fmt: string, parameters?: any[]) {
         return fmt;
     }
     return fmt.replace(/ AS "[^"]*"/g, '').replace(/\$\d/g, (substr) => {
-        let position = parseInt(substr.slice(1)) - 1;
+        const position = parseInt(substr.slice(1)) - 1;
         const type =
             typeof parameters[position] === 'string'
                 ? fmtPattern.literal
