@@ -1,6 +1,7 @@
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { TypeormInstrumentation } from 'opentelemetry-instrumentation-typeorm';
+import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 import { NestMiddleware, Logger, LoggerService } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
@@ -44,6 +45,9 @@ registerInstrumentations({
         new TypeormInstrumentation({
             enabled: true,
             enableInternalInstrumentation: true,
+        }),
+        new IORedisInstrumentation({
+            enabled: true,
         }),
     ],
 });

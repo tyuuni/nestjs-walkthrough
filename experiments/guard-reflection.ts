@@ -7,6 +7,7 @@ import {
     ExecutionContext,
     Module,
     UseGuards,
+    CanActivate,
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
@@ -19,7 +20,7 @@ enum Role {
 export const Roles = Reflector.createDecorator<Role[]>();
 
 @Injectable()
-export class RolesGuard {
+export class RolesGuard implements CanActivate {
     constructor(private reflector: Reflector) {}
 
     canActivate(context: ExecutionContext) {

@@ -1,23 +1,14 @@
-import { Redis } from 'ioredis';
-import { NestFactory } from '@nestjs/core';
-// opentelemetry should be initialized before tools: typeorm
+// opentelemetry should be initialized before tools: typeorm, redis
 import { Tracer, TracingLogger, TracingTypeormLogger } from './tracing';
+import { NestFactory } from '@nestjs/core';
+import { Redis } from 'ioredis';
 import { DataSource } from 'typeorm';
 import { User, Course, CourseStudentRef } from './service/models';
 import { TemporaryMonolithicService } from './service/TemporaryMonolithicService';
 import { Module, MiddlewareConsumer, Injectable } from '@nestjs/common';
-import { AppController } from './app.controller';
+import { AppController, PublicController } from './app.controller';
 import { RequestFormatValidationPipe } from './pipes';
-
-type Class<T = any> = new (...args: any[]) => T;
-
-const anonymizeClass = <Clazz extends Class>(clazz: Clazz): Clazz => {
-    return class extends clazz {
-        constructor(...params) {
-            super(...params);
-        }
-    };
-};
+import { Authenticator } from './authenticator';
 
 const logger = new TracingLogger('main');
 
@@ -69,7 +60,7 @@ const bootstrap = async () => {
 
     @Module({
         imports: [],
-        controllers: [AppController],
+        controllers: [AppController, PublicController],
         providers: [
             {
                 provide: TemporaryMonolithicService,
@@ -78,6 +69,10 @@ const bootstrap = async () => {
             {
                 provide: Redis,
                 useValue: redis,
+            },
+            {
+                provide: Authenticator,
+                useClass: Authenticator,
             },
         ],
     })
